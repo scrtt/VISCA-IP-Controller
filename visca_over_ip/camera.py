@@ -1,5 +1,5 @@
 import socket
-from typing import Optional, Tuple
+import binascii
 
 from visca_over_ip.exceptions import ViscaException, NoQueryResponse
 
@@ -42,7 +42,7 @@ class Camera:
         preamble = b'\x81' + (b'\x09' if query else b'\x01')
         terminator = b'\xff'
 
-        payload_bytes = preamble + bytearray.fromhex(command_hex) + terminator
+        payload_bytes = preamble + bytearray(binascii.unhexlify(command_hex.replace(' ', ''))) + terminator
         payload_length = len(payload_bytes).to_bytes(2, 'big')
 
         exception = None
@@ -89,12 +89,12 @@ class Camera:
                         else:
                             return response_payload
 
-            except socket.timeout:  # Occasionally we don't get a response because this is UDP
+            except:  # Occasionally we don't get a response because this is UDP
                 self.num_missed_responses += 1
                 break
 
     def reset_sequence_number(self):
-        message = bytearray.fromhex('02 00 00 01 00 00 00 01 01')
+        message = bytearray(b'\x02\x00\x00\x01\x00\x00\x00\x01\x01')
         self._sock.sendto(message, self._location)
         self._receive_response()
         self.sequence_number = 1
@@ -223,7 +223,7 @@ class Camera:
             direction_hex = '3'
 
         self._send_command(f'04 07 {direction_hex}{speed_hex}')
-    
+
     def zoom_to(self, position: float):
         """Zooms to an absolute position
 
@@ -292,7 +292,7 @@ class Camera:
         if interval_time < 1 or interval_time > 255 or active_time < 1 or active_time > 255:
             raise ValueError('The time must be between 1 and 255 seconds')
 
-        self._send_command('04 27 ' + f'{active_time:02x}' +' '+ f'{interval_time:02x}')
+        self._send_command('04 27 ' + f'{active_time:02x}' + ' ' + f'{interval_time:02x}')
 
     def autofocus_sensitivity_low(self, sensitivity_low: bool):
         """Sets the sensitivity of the autofocus to low
@@ -408,7 +408,7 @@ class Camera:
     def reset_white_balance_temperature(self):
         self._send_command('04 03 00')
 
-    def set_color_gain(self, color:str, gain: int):
+    def set_color_gain(self, color: str, gain: int):
         """Sets the color gain of the camera
         :param color: 'master', 'magenta', 'red', 'yellow', 'green', 'cyan', 'blue'
         :param gain: 0-15; initial value is 4
@@ -441,7 +441,7 @@ class Camera:
 
     def increase_gain(self):
         self._send_command('04 0C 02')
-    
+
     def decrease_gain(self):
         self._send_command('04 0C 03')
 
@@ -478,10 +478,10 @@ class Camera:
 
     def increase_shutter(self):
         self._send_command('04 0A 02')
-    
+
     def decrease_shutter(self):
         self._send_command('04 0A 03')
-    
+
     def reset_shutter(self):
         self._send_command('04 0A 00')
 
@@ -502,7 +502,7 @@ class Camera:
             raise ValueError('The iris must be an integer from 0 to 17 inclusive')
 
         self._send_command('04 4B 00 00 ' + f'{iris:02x}')
-    
+
     def increase_iris(self):
         self._send_command('04 0B 02')
 
@@ -520,7 +520,7 @@ class Camera:
             raise ValueError('The brightness must be an integer from 0 to 255 inclusive')
 
         self._send_command('04 4D 00 00 ' + f'{brightness:02x}')
-    
+
     def increase_brightness(self):
         self._send_command('04 0D 02')
 
@@ -549,10 +549,10 @@ class Camera:
 
     def increase_aperture(self):
         self._send_command('04 02 02')
-    
+
     def decrease_aperture(self):
         self._send_command('04 02 03')
-    
+
     def reset_aperture(self):
         self._send_command('04 02 00')
 
@@ -621,8 +621,9 @@ class Camera:
         :param signed: is this a signed integer?
         :return: an integer like this 0x1234
         """
-        unpadded_bytes = bytes.fromhex(zero_padded.hex()[1::2])
-        return int.from_bytes(unpadded_bytes, 'big', signed=signed)
+        hex_str = binascii.hexlify(zero_padded).decode('utf-8')
+        hex_str = ''.join([key for index, key in enumerate(hex_str) if index % 2 == 1])
+        return int.from_bytes(binascii.unhexlify(hex_str), 'big', signed)
 
     def get_pantilt_position(self) -> Tuple[int, int]:
         """:return: two signed integers representing the absolute pan and tilt positions respectively"""
